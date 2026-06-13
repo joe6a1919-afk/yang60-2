@@ -50,7 +50,7 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             font-weight: bold;
             margin-top: 20px;
-            z-index: 20; /* 確保按鈕在最上層 */
+            z-index: 20;
             position: relative;
         }
         
@@ -105,7 +105,7 @@
             bottom: 30px;
             left: 50%;
             transform: translateX(-50%);
-            width: 110px;
+            width: 120px;
             height: 40px;
             background-color: #8d6e63;
             border: 3px solid #5d4037;
@@ -120,14 +120,36 @@
             z-index: 3;
         }
 
+        /* 調整掉落物件樣式，使其能完美容納文字與圖示 */
         .falling-item {
             position: absolute;
-            font-size: 35px;
-            width: 45px;
-            height: 45px;
-            text-align: center;
-            line-height: 45px;
+            width: 70px;
+            height: 70px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
             z-index: 2;
+        }
+        .item-icon {
+            font-size: 24px;
+            line-height: 1;
+        }
+        .item-text {
+            font-size: 11px;
+            font-weight: bold;
+            background: rgba(255, 255, 255, 0.85);
+            padding: 1px 4px;
+            border-radius: 4px;
+            margin-top: 2px;
+            white-space: nowrap;
+            color: #1b5e20;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        /* 障礙物特殊顏色 */
+        .falling-item.bad-item .item-text {
+            color: #b71c1c;
+            background: rgba(255, 255, 255, 0.9);
         }
 
         .ctrl-btn {
@@ -151,8 +173,8 @@
         <div style="font-size: 60px; margin: 20px 0;">🌱</div>
         <div class="intro-text" style="max-width: 300px;">
             歡迎來到<b>「灌溉早苗」</b>！<br><br>
-            點擊或長按螢幕<b>左/右兩側</b>來移動「彼此搭配」籃。接住水滴、陽光與專業徽章，讓早苗健康成長！<br><br>
-            ⚠️ 提示：連續接住不同元素可觸發 <b>彼此搭配 Combo</b> 分數加倍！切記避開「孤軍作戰」！
+            點擊或長按螢幕<b>左/右兩側</b>來移動「彼此搭配」籃。接住各種跨專業團隊角色，讓早苗健康成長！<br><br>
+            ⚠️ 提示：連續接住<b>不同專業</b>可觸發 <b>彼此搭配 Combo</b> 分數加倍！切記避開「孤軍作戰」！
         </div>
         <button class="start-btn" ontouchstart="startGame()" onclick="startGame()">開始灌溉</button>
     </div>
@@ -177,8 +199,8 @@
         <h2>大會成功！早苗已茁壯成長！</h2>
         <div style="font-size: 70px; margin: 15px 0;">🌳</div>
         <div class="intro-text" style="max-width: 320px; font-size: 15px;">
-            恭喜！您成功透過完美的<b>「彼此搭配」</b>，讓早苗計劃的種子長成庇蔭社區的大樹！<br><br>
-            「到校學前康復服務-早苗計劃」全賴跨專業團隊與家長、學校緊密攜手，體現機構 8 大價值。<br><br>
+            恭喜！您成功透過完美的跨專業<b>「彼此搭配」</b>，讓早苗計劃的種子長成庇蔭社區的大樹！<br><br>
+            「到校學前康復服務-早苗計劃」全賴心理學家、社工、老師及各治療師緊密攜手，體現機構 8 大價值。<br><br>
             <b>慶祝 YANG 60 周年！</b>
         </div>
         <button class="start-btn" ontouchstart="location.reload()" onclick="location.reload()">再玩一次</button>
@@ -205,11 +227,15 @@
         let gameLoopInterval;
         let spawnInterval;
 
+        // 更新掉落物數據，將專業名稱與圖示綁定
         const itemTypes = [
-            { icon: '💧', type: 'water', score: 1 },
-            { icon: '☀️', type: 'sun', score: 1 },
-            { icon: '🌟', type: 'professional', score: 2 }, 
-            { icon: '❌', type: 'bad', score: -2 }          
+            { icon: '🧑‍⚕️', label: 'EP 心理學家', type: 'ep', score: 1 },
+            { icon: '🧑‍🤝‍🧑', label: 'SW 社工', type: 'sw', score: 1 },
+            { icon: '🩼', label: 'PT 物理治療', type: 'pt', score: 1 },
+            { icon: '🗣️', label: 'ST 言語治療', type: 'st', score: 1 },
+            { icon: '🖐️', label: 'OT 職業治療', type: 'ot', score: 1 },
+            { icon: '🏫', label: 'SCCW 幼工員', type: 'sccw', score: 1 },
+            { icon: '❌', label: '孤軍作戰', type: 'bad', score: -2 }          
         ];
 
         window.addEventListener('keydown', (e) => {
@@ -221,7 +247,145 @@
             if (e.key === 'ArrowRight') moveRight = false;
         });
 
-        // 僅在遊戲控制區域限制預防預設事件，避免影響按鈕
         document.getElementById('left-ctrl').addEventListener('touchstart', (e) => { e.preventDefault(); moveLeft = true; }, {passive: false});
         document.getElementById('left-ctrl').addEventListener('touchend', (e) => { e.preventDefault(); moveLeft = false; }, {passive: false});
-        document.getElementById('right-ctrl').addEventListener('touchstart', (e) => { e.preventDefault(); moveRight = true;
+        document.getElementById('right-ctrl').addEventListener('touchstart', (e) => { e.preventDefault(); moveRight = true; }, {passive: false});
+        document.getElementById('right-ctrl').addEventListener('touchend', (e) => { e.preventDefault(); moveRight = false; }, {passive: false});
+
+        document.getElementById('left-ctrl').addEventListener('mousedown', () => moveLeft = true);
+        document.getElementById('left-ctrl').addEventListener('mouseup', () => moveLeft = false);
+        document.getElementById('right-ctrl').addEventListener('mousedown', () => moveRight = true);
+        document.getElementById('right-ctrl').addEventListener('mouseup', () => moveRight = false);
+
+        function startGame() {
+            if (gameActive) return; 
+            startScreen.classList.remove('active');
+            endScreen.classList.remove('active');
+            gameScreen.classList.add('active');
+            
+            score = 0;
+            basketX = 50;
+            items.forEach(item => item.el.remove());
+            items = [];
+            lastItemType = '';
+            scoreVal.innerText = score;
+            stageText.innerText = '種子 🌱';
+            gameActive = true;
+
+            gameLoopInterval = setInterval(gameLoop, 16);
+            spawnInterval = setInterval(spawnItem, 1000); 
+        }
+
+        function gameLoop() {
+            if (!gameActive) return;
+
+            if (moveLeft && basketX > 15) basketX -= basketSpeed;
+            if (moveRight && basketX < 85) basketX += basketSpeed;
+            basket.style.left = basketX + '%';
+
+            const areaHeight = gameArea.clientHeight;
+            const basketRect = basket.getBoundingClientRect();
+
+            for (let i = items.length - 1; i >= 0; i--) {
+                let item = items[i];
+                item.y += item.speed;
+                item.el.style.top = item.y + 'px';
+
+                let itemRect = item.el.getBoundingClientRect();
+                
+                if (
+                    itemRect.bottom >= basketRect.top &&
+                    itemRect.top <= basketRect.bottom &&
+                    itemRect.right >= (basketRect.left - 10) &&
+                    itemRect.left <= (basketRect.right + 10)
+                ) {
+                    handleCatch(item);
+                    item.el.remove();
+                    items.splice(i, 1);
+                    continue;
+                }
+
+                if (item.y > areaHeight) {
+                    item.el.remove();
+                    items.splice(i, 1);
+                }
+            }
+        }
+
+        function spawnItem() {
+            if (!gameActive) return;
+
+            const proto = itemTypes[Math.floor(Math.random() * itemTypes.length)];
+            const el = document.createElement('div');
+            el.className = `falling-item ${proto.type === 'bad' ? 'bad-item' : ''}`;
+            
+            // 結構化內部 HTML，包含圖示與專職文字
+            el.innerHTML = `
+                <div class="item-icon">${proto.icon}</div>
+                <div class="item-text">${proto.label}</div>
+            `;
+            
+            const areaWidth = gameArea.clientWidth || window.innerWidth;
+            const randomX = Math.floor(Math.random() * (Math.min(areaWidth, 450) - 80)) + 10;
+            el.style.left = randomX + 'px';
+            el.style.top = '-80px';
+            
+            gameArea.appendChild(el);
+
+            items.push({
+                el: el,
+                x: randomX,
+                y: -80,
+                speed: Math.random() * 2 + 4, 
+                type: proto.type,
+                score: proto.score
+            });
+        }
+
+        function handleCatch(item) {
+            if (item.type === 'bad') {
+                score += item.score;
+                lastItemType = '';
+                comboText.style.display = 'none';
+            } else {
+                // 核心「彼此搭配」機制：連續接到不同的專職，觸發 Combo 分數加倍
+                if (lastItemType && lastItemType !== item.type) {
+                    score += item.score * 2; 
+                    showCombo();
+                } else {
+                    score += item.score;
+                }
+                lastItemType = item.type;
+            }
+
+            if (score < 0) score = 0;
+            scoreVal.innerText = score;
+
+            if (score >= 7 && score < 15) stageText.innerText = '嫩芽 🌿';
+            if (score >= 15) stageText.innerText = '小樹 🌳';
+
+            if (score >= 20) {
+                endGame();
+            }
+        }
+
+        function showCombo() {
+            comboText.style.display = 'block';
+            setTimeout(() => {
+                if (gameActive) comboText.style.display = 'none';
+            }, 800);
+        }
+
+        function endGame() {
+            gameActive = false;
+            clearInterval(gameLoopInterval);
+            clearInterval(spawnInterval);
+            
+            setTimeout(() => {
+                gameScreen.classList.remove('active');
+                endScreen.classList.add('active');
+            }, 500);
+        }
+    </script>
+</body>
+</html>
