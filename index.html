@@ -20,7 +20,6 @@
             overflow: hidden;
             user-select: none;
             -webkit-user-select: none;
-            /* 修正手機全螢幕高度問題 */
             height: 100vh;
             height: 100dvh;
         }
@@ -29,7 +28,7 @@
             position: absolute;
             width: 100%;
             height: 100vh;
-            height: 100dvh; /* 隨手機工具列動態縮放 */
+            height: 100dvh;
             box-sizing: border-box;
             padding: 20px;
             flex-direction: column;
@@ -73,7 +72,7 @@
             width: 100%;
             max-width: 450px;
             height: 100vh;
-            height: 100dvh; /* 確保遊戲主區塊不超出手機畫面 */
+            height: 100dvh;
             background: linear-gradient(to bottom, #e3f2fd, #f1f8e9);
             border-bottom: 10px solid #8d6e63;
             overflow: hidden;
@@ -81,11 +80,9 @@
             margin: 0 auto;
         }
         
-        /* 🛠️ 修正手機頂部留白，防止狀態列遮擋 */
         #ui-layer {
             position: absolute;
             top: 15px;
-            /* 針對有瀏海的手機增加安全區域留白 */
             top: calc(15px + env(safe-area-inset-top, 0px));
             width: 100%;
             display: flex;
@@ -110,10 +107,9 @@
             display: none;
         }
 
-        /* 🛠️ 修正接物籃位置：確保在手機瀏覽器底部工具列上方可見 */
         #basket {
             position: absolute;
-            bottom: 45px; /* 提高底部留白，防工具列阻擋 */
+            bottom: 45px;
             bottom: calc(45px + env(safe-area-inset-bottom, 0px));
             left: 50%;
             transform: translateX(-50%);
@@ -130,6 +126,7 @@
             align-items: center;
             box-shadow: 0 4px 5px rgba(0,0,0,0.2);
             z-index: 3;
+            transition: left 0.1s ease-out; /* 讓拖拽跟隨更平滑 */
         }
 
         .falling-item {
@@ -163,18 +160,18 @@
             background: rgba(255, 255, 255, 0.95);
         }
 
-        .ctrl-btn {
+        /* 🛠️ 改良後的滿版全螢幕觸控層，確保完美捕捉按住、滑動事件 */
+        #touch-controller {
             position: absolute;
-            bottom: 0;
-            width: 50%;
-            height: 100vh;
-            height: 100dvh;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             z-index: 4;
             background: rgba(0,0,0,0);
             -webkit-tap-highlight-color: rgba(0,0,0,0);
+            touch-action: none; /* 禁用瀏覽器預設的雙擊縮放及下拉重整 */
         }
-        #left-ctrl { left: 0; }
-        #right-ctrl { right: 0; }
     </style>
 </head>
 <body>
@@ -185,7 +182,7 @@
         <div style="font-size: 60px; margin: 20px 0;">🌱</div>
         <div class="intro-text" style="max-width: 380px;">
             歡迎來到<b>「灌溉早苗」</b>！<br><br>
-            點擊或長按螢幕<b>左/右兩側</b>來移動「早苗計劃」籃。 接住各種跨專業團隊角色，讓早苗健康成長！<br><br>
+            在螢幕上<b>左右滑動</b>，或<b>按住左/右兩側</b>即可靈活移動「早苗計劃」籃。接住各種跨專業團隊角色，讓早苗健康成長！<br><br>
             ⚠️ 提示：連續接住<b>不同專業</b>可觸發 <b>彼此搭配 Combo</b> 分數加倍！切記避開「孤軍作戰」！
         </div>
         <button class="start-btn" ontouchstart="startGame()" onclick="startGame()">開始灌溉</button>
@@ -201,8 +198,7 @@
             
             <div id="basket">早苗計劃</div>
             
-            <div id="left-ctrl" class="ctrl-btn"></div>
-            <div id="right-ctrl" class="ctrl-btn"></div>
+            <div id="touch-controller"></div>
         </div>
     </div>
 
@@ -227,11 +223,12 @@
         const scoreVal = document.getElementById('score-val');
         const stageText = document.getElementById('stage-text');
         const comboText = document.getElementById('combo-text');
+        const touchController = document.getElementById('touch-controller');
 
         let score = 0;
         let gameActive = false;
         let basketX = 50; 
-        let basketSpeed = 5;
+        let basketSpeed = 1.2; // 調整按住時的移動步長
         let moveLeft = false;
         let moveRight = false;
         let items = [];
@@ -249,6 +246,7 @@
             { icon: '❌', label: '孤軍作戰', type: 'bad', score: -2 }          
         ];
 
+        // 鍵盤支援（不變）
         window.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowLeft') moveLeft = true;
             if (e.key === 'ArrowRight') moveRight = true;
@@ -258,15 +256,51 @@
             if (e.key === 'ArrowRight') moveRight = false;
         });
 
-        document.getElementById('left-ctrl').addEventListener('touchstart', (e) => { e.preventDefault(); moveLeft = true; }, {passive: false});
-        document.getElementById('left-ctrl').addEventListener('touchend', (e) => { e.preventDefault(); moveLeft = false; }, {passive: false});
-        document.getElementById('right-ctrl').addEventListener('touchstart', (e) => { e.preventDefault(); moveRight = true; }, {passive: false});
-        document.getElementById('right-ctrl').addEventListener('touchend', (e) => { e.preventDefault(); moveRight = false; }, {passive: false});
+        // 🛠️ 全新手機觸控核心邏輯：完美支援「長按兩側」與「直接滑動跟隨」
+        function handleTouch(e) {
+            if (!gameActive) return;
+            e.preventDefault();
+            
+            const rect = gameArea.getBoundingClientRect();
+            // 取得第一個觸控點相對於遊戲區域的 X 座標
+            const touchX = e.touches[0].clientX - rect.left;
+            const areaWidth = rect.width;
 
-        document.getElementById('left-ctrl').addEventListener('mousedown', () => moveLeft = true);
-        document.getElementById('left-ctrl').addEventListener('mouseup', () => moveLeft = false);
-        document.getElementById('right-ctrl').addEventListener('mousedown', () => moveRight = true);
-        document.getElementById('right-ctrl').addEventListener('mouseup', () => moveRight = false);
+            // 1. 直覺式設計：直接讓籃子跟著手指的 X 軸百分比移動
+            let targetPercent = (touchX / areaWidth) * 100;
+            
+            // 限制左右邊界，防止籃子飛出畫面外
+            if (targetPercent < 15) targetPercent = 15;
+            if (targetPercent > 85) targetPercent = 85;
+            
+            basketX = targetPercent;
+
+            // 2. 備用方案：同時設定按住方向（確保舊型按住操作依然生效）
+            if (touchX < areaWidth / 2) {
+                moveLeft = true; moveRight = false;
+            } else {
+                moveRight = true; moveLeft = false;
+            }
+        }
+
+        // 觸控事件綁定
+        touchController.addEventListener('touchstart', handleTouch, {passive: false});
+        touchController.addEventListener('touchmove', handleTouch, {passive: false});
+        touchController.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            moveLeft = false;
+            moveRight = false;
+        }, {passive: false});
+
+        // 滑鼠操作模擬相容（電腦瀏覽器測試用）
+        let isMouseDown = false;
+        touchController.addEventListener('mousedown', (e) => {
+            isMouseDown = true;
+            const rect = gameArea.getBoundingClientRect();
+            if ((e.clientX - rect.left) < rect.width / 2) moveLeft = true; else moveRight = true;
+        });
+        touchController.addEventListener('mouseup', () => { isMouseDown = false; moveLeft = false; moveRight = false; });
+        touchController.addEventListener('mouseleave', () => { isMouseDown = false; moveLeft = false; moveRight = false; });
 
         function startGame() {
             if (gameActive) return; 
@@ -290,6 +324,7 @@
         function gameLoop() {
             if (!gameActive) return;
 
+            // 當使用純鍵盤或純長按時，每影格微調位置
             if (moveLeft && basketX > 15) basketX -= basketSpeed;
             if (moveRight && basketX < 85) basketX += basketSpeed;
             basket.style.left = basketX + '%';
